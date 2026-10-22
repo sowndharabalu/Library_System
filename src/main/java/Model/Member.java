@@ -2,7 +2,7 @@ package Model;
 
 import java.time.LocalDate;
 
-public record Member (Integer id, String name, String email, LocalDate joinDate) {
+public record Member(Integer id, String name, String email, LocalDate joinDate) {
     public Member {
         if (name == null || name.isBlank()) {
             throw new IllegalArgumentException("Name cannot be empty");
@@ -10,11 +10,12 @@ public record Member (Integer id, String name, String email, LocalDate joinDate)
         if (!email.contains("@")) {
             throw new IllegalArgumentException("Invalid email address");
         }
-        if (joinDate.isAfter(LocalDate.now())) {
+        if (joinDate != null && joinDate.isAfter(LocalDate.now())) {
             throw new IllegalArgumentException("Join date cannot be after now");
         }
     }
-    public static Member createMember (Integer id, String name, String email, LocalDate joinDate){
+
+    public static Member createMember(Integer id, String name, String email, LocalDate joinDate) {
         if (joinDate == null) {
             return new Member(id, name, email, LocalDate.now());
         }

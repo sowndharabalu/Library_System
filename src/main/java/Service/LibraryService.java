@@ -18,52 +18,49 @@ public class LibraryService {
     }
 
     public Book addBook(String title, String author, String genre, int year, int copies) {
-        if (title == null )
+        if (title == null)
             throw new IllegalArgumentException("title is null");
-        if(author == null)
+        if (author == null)
             throw new IllegalArgumentException("author is null");
-        if(genre == null)
+        if (genre == null)
             throw new IllegalArgumentException("genre is null");
-        if(year <= 0)
+        if (year <= 0)
             throw new IllegalArgumentException("year is zero");
-        if(copies < 0)
+        if (copies < 0)
             throw new IllegalArgumentException("copies is negative");
         return bookRepo.save(Book.createBook(null, title, author, genre, year, copies));
     }
 
     public Member addMember(String username, String email, LocalDate joinDate) {
-        if(username==null){
+        if (username == null)
             throw new IllegalArgumentException("username is null");
-        }
-        if(email==null){
+        if (email == null)
             throw new IllegalArgumentException("email is null");
-        }
+        if (memberRepo.existsByEmail(email))
+            throw new IllegalArgumentException("email already exists");
         return memberRepo.save(Member.createMember(null, username, email, joinDate));
     }
 
     public Borrowing borrowBook(int bookId, int memberId) {
-        if (!bookRepo.findById(bookId).isPresent() || bookRepo.findById(bookId).get().availableCopies()<=0) {
-            throw new IllegalArgumentException("book not available");
-        }
-        Book book = bookRepo.findById(bookId).get();
-        if (!memberRepo.findById(memberId).isPresent()) {
-            throw new IllegalArgumentException("member not found");
-        }
-        bookRepo.save(Book.createBook(bookId,book.title(),book.author(),book.genre(),book.year(),book.availableCopies()-1));
-        return borrowingRepo.save(Borrowing.borrowBook(null,bookId,memberId,null,null,null));
+        Book book = bookRepo.findById(bookId).orElseThrow(() -> new IllegalArgumentException("Book not found"));
+        if (book.availableCopies() <= 0)
+            throw new IllegalArgumentException("Book has no available copies");
+        memberRepo.findById(memberId).orElseThrow(() -> new IllegalArgumentException("Member not found"));
+        long activeCount = borrowingRepo.findActiveByMemberId(memberId).size();
+        if (activeCount >= 3)
+            throw new IllegalArgumentException("Member has reached borrowing limit (3 books)");
+        Borrowing borrowing = borrowingRepo.save(Borrowing.borrowBook(null, bookId, memberId, null, null, null));
+        bookRepo.updateCopies(bookId, -1);
+        return borrowing;
     }
 
     public void returnBook(int borrowingId) {
-        if (!borrowingRepo.findById(borrowingId).isPresent()) {
-            throw new IllegalArgumentException("borrowing not found");
-        }
-        Borrowing borrowing = borrowingRepo.findById(borrowingId).get();
-        if (borrowing.returnDate()!=null) {
+        Borrowing borrowing = borrowingRepo.findById(borrowingId).orElseThrow(() -> new IllegalArgumentException("borrowing not found"));
+        if (borrowing.returnDate() != null)
             throw new IllegalArgumentException("book already returned");
-        }
-        int id=borrowing.bookId();
-        bookRepo.findById(id).ifPresent(book -> bookRepo.save(Book.createBook(book.id(),book.title(),book.author(),book.genre(),book.year(),book.availableCopies()+1)));
-        borrowingRepo.markAsReturned(borrowingId,LocalDate.now());
+        int id = borrowing.bookId();
+        borrowingRepo.markAsReturned(borrowingId, LocalDate.now());
+        bookRepo.findById(id).ifPresent(book -> bookRepo.updateCopies(book.id(), 1));
     }
 
     public List<Borrowing> getOverdueBooks() {
@@ -71,16 +68,28 @@ public class LibraryService {
     }
 
     public List<Book> searchBooks(String keyword) {
-        if(!bookRepo.findByAuthor(keyword).isEmpty()){
+        if (!bookRepo.findByAuthor(keyword).isEmpty()) {
             return bookRepo.findByAuthor(keyword);
-        }else if(!bookRepo.findByTitle(keyword).isEmpty()){
+        } else if (!bookRepo.findByTitle(keyword).isEmpty()) {
             return bookRepo.findByTitle(keyword);
-        }else {
+        } else {
             throw new IllegalArgumentException("Can't find by keyword!");
         }
     }
 
     public List<Book> getAllBooks() {
         return bookRepo.findAll();
+    }
+
+    public List<Borrowing> getMemberHistory(int memberId) {
+        return borrowingRepo.findByUserId(memberId);
+    }
+
+    public List<Borrowing> getBookHistory(int bookId) {
+        return borrowingRepo.findByBookId(bookId);
+    }
+
+    public List<Borrowing> getCurrentlyBorrowed() {
+        return borrowingRepo.findActiveBorrowings();
     }
 }
